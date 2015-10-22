@@ -2,12 +2,7 @@
 .Rhistory
 .Rapp.history
 
-# Example code in package build process
-*-Ex.R
-
-# RStudio files
-.Rproj.user/
-
-# produced vignettes
-vignettes/*.html
-vignettes/*.pdf
+# Raw Data Directories
+imported_data
+raw_data
+work_data
