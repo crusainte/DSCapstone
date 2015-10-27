@@ -30,21 +30,15 @@ save(corpusDictionary,file="work_data//corpusDictionary.RData")
 reviewCorpus <- tm_map(reviewCorpus, stemDocument)
 
 #Create DTM
-reviewDtm <- DocumentTermMatrix(reviewCorpus, control = list(minWordLength = 3))
-
+reviewDtm <- DocumentTermMatrix(reviewCorpus, control = list(minDocFreq=2, minWordLength=3))
 save(reviewDtm,file="work_data//reviewDtm.RData")
-
-#completed <- stemCompletion(colnames(reviewDtm), corpusDictionary)
-#completed <- Corpus(VectorSource(completed))
-#completed <- DocumentTermMatrix(completed, control = list(minWordLength = 3))
-
-#save(completed,file="work_data//completed.RData")
-
-#DTM Exploration
-
-#Look at top frequency terms
-findFreqTerms(reviewDtm, lowfreq=35000)
 
 #Remove Sparse Terms
 reviewDtmCompact <- removeSparseTerms(reviewDtm, sparse=0.88)
+
+#Find rows with empty documents
+rowTotals <- apply(reviewDtmCompact , 1, sum)
+
+#remove empty documents from the existing corpus and build a new one
+reviewDtmCompact   <- reviewDtmCompact[rowTotals> 0, ]
 save(reviewDtmCompact,file="work_data//reviewDtmCompact.RData")
