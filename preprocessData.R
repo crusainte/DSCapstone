@@ -1,12 +1,12 @@
 library(tm)
 library(SnowballC)
 library(stringi)
+library(slam)
 
 #Preprocess to remove non ASCII characters
 
 #Create Corpus
 reviewCorpus <- Corpus(VectorSource(lowstarreview$text))
-#reviewCorpus <- Corpus(VectorSource(sample))
 
 #save(reviewCorpus,file="work_data//originalCorpus.RData")
 
@@ -19,22 +19,21 @@ removeNonASCII <- function(x)
 #Clean Corpus
 reviewCorpus <- tm_map(reviewCorpus, content_transformer(removeNonASCII))
 reviewCorpus <- tm_map(reviewCorpus, content_transformer(tolower))
-reviewCorpus <- tm_map(reviewCorpus, removePunctuation)
-reviewCorpus <- tm_map(reviewCorpus, removeNumbers)
-reviewCorpus <- tm_map(reviewCorpus, removeWords, stopwords("english"))
-reviewCorpus <- tm_map(reviewCorpus, stripWhitespace)
-
-corpusDictionary <- reviewCorpus
-save(corpusDictionary,file="work_data//corpusDictionary.RData")
-
-reviewCorpus <- tm_map(reviewCorpus, stemDocument)
-
 #Create DTM
-reviewDtm <- DocumentTermMatrix(reviewCorpus, control = list(minDocFreq=2, minWordLength=3))
+reviewDtm <- DocumentTermMatrix(reviewCorpus, control = list(stemming = TRUE, stopwords = TRUE,
+                                                             removeNumbers = TRUE, removePunctuation = TRUE, minDocFreq=2, minWordLength=3))
 save(reviewDtm,file="work_data//reviewDtm.RData")
 
 #Remove Sparse Terms
-reviewDtmCompact <- removeSparseTerms(reviewDtm, sparse=0.88)
+reviewDtmCompact <- removeSparseTerms(reviewDtm, sparse=0.9)
+
+#Apply term tf-idf as a weighting factor to trim number of terms
+term_tfidf <- tapply(reviewDtmCompact$v/row_sums(reviewDtmCompact)[reviewDtmCompact$i], reviewDtmCompact$j, mean) *
+    log2(nDocs(reviewDtmCompact)/col_sums(reviewDtmCompact > 0))
+summary(term_tfidf)
+
+reviewDtmCompact <- reviewDtmCompact[,term_tfidf >= median(term_tfidf)]
+summary(col_sums(reviewDtmCompact))
 
 #Find rows with empty documents
 rowTotals <- apply(reviewDtmCompact , 1, sum)
