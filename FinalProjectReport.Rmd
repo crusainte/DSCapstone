@@ -1,0 +1,238 @@
+---
+title: "Topic Modeling of Low Starred Reviews on Restaurants"
+author: "Yang Yuzhong"
+date: "11/8/2015"
+output: html_document
+---
+
+## Introduction
+
+_“The most important thing in communication is hearing what isn't being said. 
+The art of reading between the lines is a life long quest of the wise.”_  
+― Shannon L. Alder
+
+The following report seeks to assist restaurant businesses to answer the 
+question on the Top 10 related topics that reviewers have to say when giving 
+restaurants negative reviews. 
+
+Topics generated from `Latent Dirichlet Allocation`, a Topic Modelling 
+algorithm, on negative restaurant reviews that were between 1-2 stars show that
+customers are generally weigh the restaurant star based on **insert answer**
+
+## Methods
+
+### Obtaining the data
+
+The zip file containing the dataset was downloaded from this [link](https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/yelp_dataset_challenge_academic_dataset.zip) on the Coursera Course mainpage. This was then extracted into _"raw_data"_ directory.
+
+### Importing the data
+
+The relevant data, namely business and reviews, were imported and saved in _"imported_data"_ using `jsonlite` package.
+
+```{r, eval=FALSE}
+library(jsonlite)
+
+# Setting variables for individual JSON files
+json_business <- "raw_data//yelp_academic_dataset_business.json"
+json_review <- "raw_data//yelp_academic_dataset_review.json"
+
+# Reading in each json file and store as RData object for ease of loading
+business <- stream_in(file(json_business))
+save(business, file="imported_data//business.RData")
+
+review <- stream_in(file(json_review))
+save(review, file="imported_data//review.RData")
+```
+
+### Extracting the relevant data
+
+Following this, the data from restaurant business category was extracted from 
+the business dataset and joined with review dataset using the column
+`business_id`. After the join, restaurant related reviews of 1-2 stars were
+extracted for preprocessing in the next step.
+
+```{r, eval=FALSE}
+# load data
+load("imported_data//business.RData")
+load("imported_data//review.RData")
+
+#Filter businesses to target only Restaurants
+restaurants<-business[grep("Restaurants",business$categories),]
+
+#Filter reviews for restaurants
+restaurantreview <- review[review$business_id %in% restaurants$business_id,]
+
+#Obtain low star reviews
+lowstarreview<-restaurantreview[restaurantreview$stars < 3, ]
+
+#Number of reviews to perform text mining on
+length(lowstarreview$stars)
+```
+
+### Preprocessing and Cleaning of the data
+
+The text from low starred restaurant reviews were put into a Corpus which then
+undergo the following data cleaning steps:
+1. Removal of non-ASCII characters
+2. Setting all characters to lower case
+3. Removal of stop words (words like _the, is, at, which_ etc)
+4. Removal of numbers
+5. Removal of puncuations 
+6. Stemming to obtain the English root word
+7. Filtering of words below 3 characters
+8. Filtering of words that are rarely found across all reviews
+
+Lastly, irrelevant reviews with words that were filtered by the previous steps
+were also removed from the Corpus.
+
+```{r, eval=FALSE}
+library(tm)
+library(SnowballC)
+library(stringi)
+library(slam)
+
+#Function for removing non ascii characters
+removeNonASCII <- function(x) 
+{
+    iconv(x, "latin1", "ASCII", sub="")
+} 
+
+#Create Corpus
+reviewCorpus <- Corpus(VectorSource(lowstarreview$text))
+save(reviewCorpus,file="work_data//originalCorpus.RData")
+ 
+
+#Clean Corpus
+reviewCorpus <- tm_map(reviewCorpus, content_transformer(removeNonASCII))
+reviewCorpus <- tm_map(reviewCorpus, content_transformer(tolower))
+#Create DTM
+reviewDtm <- DocumentTermMatrix(reviewCorpus, control = list(stemming = TRUE, stopwords = TRUE,
+                                                             removeNumbers = TRUE, removePunctuation = TRUE, minDocFreq=2, minWordLength=3))
+save(reviewDtm,file="work_data//reviewDtm.RData")
+
+#Remove Sparse Terms
+reviewDtmCompact <- removeSparseTerms(reviewDtm, sparse=0.9)
+
+#Find rows with empty documents
+rowTotals <- apply(reviewDtmCompact , 1, sum)
+
+#remove empty documents from the existing corpus and build a new one
+reviewDtmCompact   <- reviewDtmCompact[rowTotals> 0, ]
+save(reviewDtmCompact,file="work_data//reviewDtmCompact.RData")
+```
+
+### Word Cloud and Exploring the feasibility of the Question
+
+*Insert word cloud here*
+
+*Insert the count of number of reviews here*
+
+### Performing Topic Modelling on the data
+
+LDA modelling was performed
+
+```{r, eval=FALSE}
+library(tm)
+library(SnowballC)
+library(topicmodels)
+library(Rmpfr)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(LDAvis)
+library(stringi)
+
+#Function to calculate harmonic mean
+harmonicMean <- function(logLikelihoods, precision = 2000L) {
+    llMed <- median(logLikelihoods)
+    as.double(llMed - log(mean(exp(-mpfr(logLikelihoods,
+                                         prec = precision) + llMed))))
+}
+#Function to transform LDA model into JSON for display
+topicmodels_json_ldavis <- function(fitted, corpus, doc_term){
+    # Required packages
+    library(topicmodels)
+    library(dplyr)
+    library(stringi)
+    library(tm)
+    library(LDAvis)
+    
+    # Find required quantities
+    phi <- posterior(fitted)$terms %>% as.matrix
+    theta <- posterior(fitted)$topics %>% as.matrix
+    vocab <- colnames(phi)
+    doc_length <- vector()
+    for (i in 1:length(corpus)) {
+        temp <- paste(corpus[[i]]$content, collapse = ' ')
+        doc_length <- c(doc_length, stri_count(temp, regex = '\\S+'))
+    }
+    temp_frequency <- inspect(doc_term)
+    freq_matrix <- data.frame(ST = colnames(temp_frequency),
+                              Freq = colSums(temp_frequency))
+    rm(temp_frequency)
+    
+    # Convert to json
+    json_lda <- LDAvis::createJSON(phi = phi, theta = theta,
+                                   vocab = vocab,
+                                   doc.length = doc_length,
+                                   term.frequency = freq_matrix$Freq)
+    
+    return(json_lda)
+}
+
+# Due to the vast amount of reviews, I will only run this for 100 iterations
+topicNum <- seq(5, 20, 1)
+burnin <- 100
+iter <- 100
+keep <- 50
+system.time(fitted_many <- lapply(topicNum, function(k) LDA(reviewDtmCompact, k = k,
+                                                                     method = "Gibbs",control = list(burnin = burnin,
+                                                                                                     iter = iter, keep = keep) )))
+save(fitted_many,file="work_data//fitted_many2.RData")
+
+# extract logliks from each topic
+logLiks_many <- lapply(fitted_many, function(L)  L@logLiks[-c(1:(burnin/keep))])
+
+# compute harmonic means
+hm_many <- sapply(logLiks_many, function(h) harmonicMean(h))
+
+ldaplot <- ggplot(data.frame(topicNum, hm_many), aes(x=topicNum, y=hm_many)) + geom_path(lwd=1.5) +
+    theme(text = element_text(family= NULL),
+          axis.title.y=element_text(vjust=1, size=16),
+          axis.title.x=element_text(vjust=-.5, size=16),
+          axis.text=element_text(size=16),
+          plot.title=element_text(size=20)) +
+    xlab('Number of Topics') +
+    ylab('Harmonic Mean') +
+    annotate("text", x = 25, y = -80000, label = paste("The optimal number of topics is", topicNum[which.max(hm_many)])) +
+    ggtitle(expression(atop("Latent Dirichlet Allocation Analysis of Restaurant Reviews"))))
+
+# Obtain the 20 topic model for usage
+model<-fitted_many[[16]]
+save(model,file="work_data//model.RData")
+
+# Preliminary look at review terms
+review.terms <- as.data.frame(terms(model, 30), stringsAsFactors = FALSE)
+review.terms[1:5]
+
+# Convert reviewDtmCompact back to corpus for LDAvis json creation
+dtm2list <- apply(reviewDtmCompact, 1, function(x) {
+    paste(rep(names(x), x), collapse=" ")
+})
+reviewCorpus <- VCorpus(VectorSource(dtm2list))
+
+# Generate JSON to be passed into serVis to display the LDA visualization
+ldavis_json<-topicmodels_json_ldavis(model,reviewCorpus,reviewDtmCompact)
+
+# Display the visualization of the LDA model
+serVis(ldavis_json)
+```
+
+## Results of the LDA
+
+Results from the topic modelling:
+*insert topic modelling results*
+
+## Discussion of the Topics from LDA
+
+*insert results*

@@ -27,14 +27,6 @@ save(reviewDtm,file="work_data//reviewDtm.RData")
 #Remove Sparse Terms
 reviewDtmCompact <- removeSparseTerms(reviewDtm, sparse=0.9)
 
-#Apply term tf-idf as a weighting factor to trim number of terms
-term_tfidf <- tapply(reviewDtmCompact$v/row_sums(reviewDtmCompact)[reviewDtmCompact$i], reviewDtmCompact$j, mean) *
-    log2(nDocs(reviewDtmCompact)/col_sums(reviewDtmCompact > 0))
-summary(term_tfidf)
-
-reviewDtmCompact <- reviewDtmCompact[,term_tfidf >= median(term_tfidf)]
-summary(col_sums(reviewDtmCompact))
-
 #Find rows with empty documents
 rowTotals <- apply(reviewDtmCompact , 1, sum)
 
