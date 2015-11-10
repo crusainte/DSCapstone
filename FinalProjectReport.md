@@ -1,7 +1,7 @@
 ---
 title: "Topic Modeling of Low Starred Reviews on Restaurants"
 author: "Yang Yuzhong"
-date: "11/10/2015"
+date: "11/8/2015"
 output: html_document
 ---
 
@@ -56,7 +56,8 @@ The zip file containing the dataset was downloaded from this [link](https://d396
 
 The relevant data, namely business and reviews, were imported and saved in _"imported_data"_ using `jsonlite` package.
 
-```{r, eval=FALSE}
+
+```r
 library(jsonlite)
 
 # Setting variables for individual JSON files
@@ -78,7 +79,8 @@ the business dataset and joined with review dataset using the column
 `business_id`. After the join, restaurant related reviews of 1-2 stars were
 extracted for preprocessing in the next step.
 
-```{r, eval=FALSE}
+
+```r
 # load data
 load("imported_data//business.RData")
 load("imported_data//review.RData")
@@ -112,7 +114,8 @@ undergo the following data cleaning steps:
 Lastly, irrelevant reviews with words that were filtered by the previous steps
 were also removed from the Corpus.
 
-```{r, eval=FALSE}
+
+```r
 library(tm)
 library(SnowballC)
 library(stringi)
@@ -156,9 +159,21 @@ save(reviewDtmCompact,file="work_data//reviewDtmCompact.RData")
 
 ### Word Cloud and Exploring the feasibility of the Question
 
-```{r}
+
+```r
 reviewDtmCompact$nrow
+```
+
+```
+## [1] 183176
+```
+
+```r
 reviewDtmCompact$ncol
+```
+
+```
+## [1] 90
 ```
 
 After the data preprocessing and removal of reviews that contains irrelevant 
@@ -171,14 +186,24 @@ high frequency in the 1-2 star restaurant review corpus to answer the question
 on the Top 10 related topics that reviewers have to say when giving 
 restaurants negative reviews.
 
-```{r}
+
+```r
 library(wordcloud)
 corpus.matrix <- as.matrix(reviewDtmCompact)
+```
+
+```
+## Error: cannot allocate vector of size 125.8 Mb
+```
+
+```r
 corpus.sorted <- sort(colSums(corpus.matrix), decreasing=TRUE)
 terms <- names(corpus.sorted)
 terms.df <- data.frame(word=terms, freq=corpus.sorted)
 wordcloud(terms.df$word, colors=c(3,4), random.color=FALSE, terms.df$freq, min.freq=35000)
 ```
+
+![plot of chunk unnamed-chunk-5](figure/unnamed-chunk-5-1.png) 
 
 From the wordcloud, we could pick up terms like *order*,*place*,*food* that will
 be relevant to answering our question. Also, terms like *like*,*just*,*good* may
@@ -195,7 +220,8 @@ As we would not be able to identify the number of topics the review dataset
 would yield beforehand, LDA modelling was performed for 5-20 topics (due to 
 computer limitations).
 
-```{r, eval=FALSE}
+
+```r
 library(tm)
 library(SnowballC)
 library(topicmodels)
@@ -220,7 +246,8 @@ the review dataset given the number topics. In other words, the higher the
 harmonic mean, the higher the likelihood of the dataset would yield the
 number of topics.
 
-```{r}
+
+```r
 library(Rmpfr)
 #Function to calculate harmonic mean
 harmonicMean <- function(logLikelihoods, precision = 2000L) {
@@ -239,7 +266,8 @@ hm_many <- sapply(logLiks_many, function(h) harmonicMean(h))
 With the harmonic mean from each of the LDA model of 5-20 topics, the topic 
 number is plotted against harmonic mean to choose the best fit model.
 
-```{r}
+
+```r
 ldaplot <- ggplot(data.frame(topicNum, hm_many), aes(x=topicNum, y=hm_many)) + geom_path(lwd=1.5) +
     theme(text = element_text(family= NULL),
           axis.title.y=element_text(vjust=1, size=16),
@@ -252,10 +280,13 @@ ldaplot <- ggplot(data.frame(topicNum, hm_many), aes(x=topicNum, y=hm_many)) + g
 ldaplot
 ```
 
+![plot of chunk unnamed-chunk-8](figure/unnamed-chunk-8-1.png) 
+
 From the results of the plot, the LDA model with 20 topics was chosen to derive
 the top 10 topics on 1-2 star reviews for restaurants.
 
-```{r}
+
+```r
 # Obtain the 20 topic LDA model for further analysis
 model<-fitted_many[[16]]
 ```
@@ -265,7 +296,8 @@ model<-fitted_many[[16]]
 With the 20 topic LDA model, the top 5 terms related to the 20 topics were 
 extract and put into `topicLabel` and take a look at the resultant topics.
 
-```{r}
+
+```r
 review.terms <- as.data.frame(terms(model, 30), stringsAsFactors = FALSE)
 topicTerms <- gather(review.terms, ReviewTopic)
 # Rank the topics
@@ -290,8 +322,17 @@ colnames(topicLabel) <- c("Label")
 We could group reviewers giving restaurant 1-2 star reviews based on the top 5 
 terms from the top 10 topics in the LDA model.
 
-```{r}
+
+```r
 topicLabel[1:10,]
+```
+
+```
+##  [1] "night use went back still"      "wait minut waitress tabl anoth"
+##  [3] "got friend one went even"       "order came take took back"     
+##  [5] "eat can here peopl make"        "ask said server told came"     
+##  [7] "food servic service great good" "tast chicken like fri good"    
+##  [9] "better price much way noth"     "never will back again ever"
 ```
 
 ## Discussion on the Topics from LDA model
@@ -321,7 +362,8 @@ is used to generate an interactive visualization to explore topics related to
 Firstly, the corpus is transformed into a JSON file to be read into the 
 visualization.
 
-```{r, eval=FALSE}
+
+```r
 #Function to transform LDA model into JSON for display
 topicmodels_json_ldavis <- function(fitted, corpus, doc_term){
     # Required packages
@@ -369,8 +411,3 @@ serVis(ldavis_json, as.gist=TRUE)
 
 The link of the uploaded visualization of the 20-topic LDA model can be accessed
 from [link](http://bl.ocks.org/crusainte/raw/8c348220ad876284d667/#topic=0&lambda=1&term=).
-
-##Citations
-1. Topic Modeling in R by David Meza - http://davidmeza1.github.io/2015/07/20/topic-modeling-in-R.html
-2. Latent Dirichlet Allocation by Martin Ponweiser - http://epub.wu.ac.at/3558/1/main.pdf
-3. Topic Modeling using LDA in R - http://www.codemiles.com/r-examples/topic-modeling-using-lda-in-r-t11119.html

@@ -7,6 +7,7 @@ library(dplyr)
 library(tidyr)
 library(LDAvis)
 library(stringi)
+library(stringr)
 
 #Function to calculate harmonic mean
 harmonicMean <- function(logLikelihoods, precision = 2000L) {
@@ -70,8 +71,7 @@ ldaplot <- ggplot(data.frame(topicNum, hm_many), aes(x=topicNum, y=hm_many)) + g
           plot.title=element_text(size=20)) +
     xlab('Number of Topics') +
     ylab('Harmonic Mean') +
-    annotate("text", x = 25, y = -80000, label = paste("The optimal number of topics is", topicNum[which.max(hm_many)])) +
-    ggtitle(expression(atop("Latent Dirichlet Allocation Analysis of NEN LLIS", atop(italic("How many distinct topics in the abstracts?"), ""))))
+    ggtitle(expression(atop("LDA Analysis of Negative Restaurant Reviews")))
 
 # Obtain the 20 topic model for usage
 model<-fitted_many[[16]]
@@ -80,6 +80,23 @@ save(model,file="work_data//model.RData")
 # Preliminary look at review terms
 review.terms <- as.data.frame(terms(model, 30), stringsAsFactors = FALSE)
 review.terms[1:5]
+
+topicTerms <- gather(review.terms, ReviewTopic)
+# Rank the topics
+topicTerms <- cbind(topicTerms, Rank = rep(1:30))
+# Filter the top 3 terms for each topic
+topTerms <- filter(topicTerms, Rank < 4)
+topTerms <- mutate(topTerms, ReviewTopic = word(ReviewTopic, 2))
+topTerms$ReviewTopic <- as.numeric(topTerms$ReviewTopic)
+topicLabel <- data.frame()
+# Combine the top 3 terms in each topic as label
+for (i in 1:20){
+    z <- filter(topTerms, ReviewTopic == i)
+    l <- as.data.frame(paste(z[1,2], z[2,2], z[3,2], sep = " " ), stringsAsFactors = FALSE)
+    topicLabel <- rbind(topicLabel, l)
+    
+}
+colnames(topicLabel) <- c("Label")
 
 # Convert reviewDtmCompact back to corpus for LDAvis json creation
 dtm2list <- apply(reviewDtmCompact, 1, function(x) {
