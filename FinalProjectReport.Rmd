@@ -297,7 +297,7 @@ topicLabel[1:10,]
 ## Discussion on the Topics from LDA model
 
 ### Inference of Topics based on terms
-Based on the top 10 topics of 1-2 star reviews tend to be given restaurants, we 
+Based on the top 10 topics of 1-2 star reviews tend to be given to restaurants, we 
 could infer the following customer behaviour that results in low star reviews:
 
 1. Went to the restaurant at night
